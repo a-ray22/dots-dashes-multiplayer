@@ -11,7 +11,7 @@
 <body class="bg-gray-100 dark:bg-gray-900">
     <div id="app" class="min-h-screen">
         <!-- Loading Screen -->
-        <div id="loadingScreen" class="fixed inset-0 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center z-50">
+        <div id="loadingScreen" class="fixed inset-0 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center z-50" style="display: flex;">
             <div class="text-center text-white">
                 <div class="animate-spin-slow mb-4">
                     <i class="fas fa-gamepad text-6xl"></i>
@@ -22,7 +22,7 @@
         </div>
 
         <!-- Welcome Screen -->
-        <div id="welcomeScreen" class="hidden fixed inset-0 bg-gradient-to-br from-yellow-50 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 flex items-center justify-center z-40">
+        <div id="welcomeScreen" class="fixed inset-0 bg-gradient-to-br from-yellow-50 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 flex items-center justify-center z-40" style="display: none;">
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
                 <div class="text-center mb-8">
                     <div class="animate-bounce-gentle mb-4">
@@ -67,7 +67,7 @@
         </div>
 
         <!-- Game Screen -->
-        <div id="gameScreen" class="hidden">
+        <div id="gameScreen" style="display: none;">
             <!-- Header -->
             <header class="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
                 <div class="max-w-6xl mx-auto px-4 py-4">
