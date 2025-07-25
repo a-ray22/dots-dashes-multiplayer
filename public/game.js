@@ -5,6 +5,7 @@ let playerName = null;
 let roomCode = null;
 let lastUpdate = 0;
 let pollInterval = null;
+let selectedDot = null;
 
 // Initialize the game
 function init() {
@@ -494,7 +495,20 @@ function updateScores() {
 
 function getPlayerName(playerId) {
     if (!playerId) return 'Unknown';
-    return playerId === playerId ? playerName : `Player ${gameState.players.indexOf(playerId) + 1}`;
+    if (playerId === playerId) return playerName;
+    
+    // Get player name from game state or room info
+    if (gameState && gameState.players) {
+        const playerIndex = gameState.players.indexOf(playerId);
+        if (playerIndex !== -1) {
+            // Try to get from room info
+            if (roomCode) {
+                // This will be updated by polling
+                return `Player ${playerIndex + 1}`;
+            }
+        }
+    }
+    return `Player ${gameState.players.indexOf(playerId) + 1}`;
 }
 
 function renderGame() {
@@ -516,8 +530,8 @@ function renderDots() {
     const existingDots = gameBoard.querySelectorAll('.dot');
     existingDots.forEach(dot => dot.remove());
     
-    // Create dots
-    const size = 6; // 6x6 grid
+    // Create dots for 6x6 grid (7x7 dots)
+    const size = 6;
     for (let row = 0; row <= size; row++) {
         for (let col = 0; col <= size; col++) {
             const dot = createDot(row, col);
@@ -529,8 +543,15 @@ function renderDots() {
 function createDot(row, col) {
     const dot = document.createElement('div');
     dot.className = 'dot';
+    dot.style.position = 'absolute';
     dot.style.left = `${col * 60 + 20}px`;
     dot.style.top = `${row * 60 + 20}px`;
+    dot.style.width = '12px';
+    dot.style.height = '12px';
+    dot.style.backgroundColor = '#374151';
+    dot.style.borderRadius = '50%';
+    dot.style.cursor = 'pointer';
+    dot.style.zIndex = '10';
     dot.dataset.row = row;
     dot.dataset.col = col;
     
@@ -540,46 +561,62 @@ function createDot(row, col) {
 }
 
 function handleDotClick(row, col) {
-    // Find the closest line to this dot
-    const lines = document.querySelectorAll('.line');
-    let closestLine = null;
-    let minDistance = Infinity;
+    if (!gameState || gameState.gameOver) return;
     
-    lines.forEach(line => {
-        const lineRect = line.getBoundingClientRect();
-        const dotRect = document.querySelector(`[data-row="${row}"][data-col="${col}"]`).getBoundingClientRect();
-        
-        const distance = Math.sqrt(
-            Math.pow(lineRect.left - dotRect.left, 2) + 
-            Math.pow(lineRect.top - dotRect.top, 2)
-        );
-        
-        if (distance < minDistance) {
-            minDistance = distance;
-            closestLine = line;
+    // Check if it's this player's turn
+    if (gameState.players[gameState.currentPlayer] !== playerId) {
+        alert("It's not your turn!");
+        return;
+    }
+    
+    if (!selectedDot) {
+        // First dot selected
+        selectedDot = { row, col };
+        highlightDot(row, col);
+    } else {
+        // Second dot selected - try to draw line
+        const lineType = getLineType(selectedDot, { row, col });
+        if (lineType) {
+            const lineRow = Math.min(selectedDot.row, row);
+            const lineCol = Math.min(selectedDot.col, col);
+            makeMove(lineType, lineRow, lineCol);
         }
-    });
-    
-    if (closestLine && minDistance < 30) {
-        const lineType = closestLine.dataset.type;
-        const lineRow = parseInt(closestLine.dataset.row);
-        const lineCol = parseInt(closestLine.dataset.col);
         
-        makeMove(lineType, lineRow, lineCol);
+        // Clear selection
+        clearDotSelection();
+        selectedDot = null;
     }
 }
 
-function selectDot(row, col) {
-    // Remove previous selection
+function getLineType(dot1, dot2) {
+    if (dot1.row === dot2.row && Math.abs(dot1.col - dot2.col) === 1) {
+        return 'h'; // horizontal line
+    } else if (dot1.col === dot2.col && Math.abs(dot1.row - dot2.row) === 1) {
+        return 'v'; // vertical line
+    }
+    return null; // not adjacent
+}
+
+function highlightDot(row, col) {
+    // Remove previous highlights
     document.querySelectorAll('.dot.selected').forEach(dot => {
         dot.classList.remove('selected');
+        dot.style.backgroundColor = '#374151';
     });
     
-    // Select current dot
+    // Highlight current dot
     const dot = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
     if (dot) {
         dot.classList.add('selected');
+        dot.style.backgroundColor = '#3b82f6';
     }
+}
+
+function clearDotSelection() {
+    document.querySelectorAll('.dot.selected').forEach(dot => {
+        dot.classList.remove('selected');
+        dot.style.backgroundColor = '#374151';
+    });
 }
 
 function renderLines() {
@@ -612,25 +649,25 @@ function renderLines() {
 function createLine(type, row, col, playerId) {
     const line = document.createElement('div');
     line.className = 'line';
-    line.dataset.type = type;
-    line.dataset.row = row;
-    line.dataset.col = col;
+    line.style.position = 'absolute';
+    line.style.zIndex = '5';
     
     if (type === 'h') {
-        line.style.left = `${col * 60 + 30}px`;
-        line.style.top = `${row * 60 + 15}px`;
-        line.style.width = '60px';
-        line.style.height = '10px';
+        line.style.left = `${col * 60 + 26}px`;
+        line.style.top = `${row * 60 + 14}px`;
+        line.style.width = '48px';
+        line.style.height = '8px';
     } else {
-        line.style.left = `${col * 60 + 15}px`;
-        line.style.top = `${row * 60 + 30}px`;
-        line.style.width = '10px';
-        line.style.height = '60px';
+        line.style.left = `${col * 60 + 14}px`;
+        line.style.top = `${row * 60 + 26}px`;
+        line.style.width = '8px';
+        line.style.height = '48px';
     }
     
     // Color based on player
     const isCurrentPlayer = playerId === playerId;
     line.style.backgroundColor = isCurrentPlayer ? '#3b82f6' : '#ef4444';
+    line.style.borderRadius = '4px';
     
     return line;
 }
@@ -656,15 +693,18 @@ function renderBoxes() {
 function createBox(row, col, playerId) {
     const box = document.createElement('div');
     box.className = 'box';
-    box.style.left = `${col * 60 + 30}px`;
-    box.style.top = `${row * 60 + 30}px`;
-    box.style.width = '60px';
-    box.style.height = '60px';
+    box.style.position = 'absolute';
+    box.style.left = `${col * 60 + 26}px`;
+    box.style.top = `${row * 60 + 26}px`;
+    box.style.width = '48px';
+    box.style.height = '48px';
+    box.style.zIndex = '1';
     
     // Color based on player
     const isCurrentPlayer = playerId === playerId;
     box.style.backgroundColor = isCurrentPlayer ? '#3b82f6' : '#ef4444';
     box.style.opacity = '0.3';
+    box.style.borderRadius = '4px';
     
     return box;
 }
