@@ -1,395 +1,404 @@
 // Game state
-let socket;
-let playerId;
-let playerName;
 let gameState = null;
-let selectedDot = null;
-let gameSize = 6;
-let dotSpacing = 60;
-
-// DOM elements
-const loadingScreen = document.getElementById('loadingScreen');
-const welcomeScreen = document.getElementById('welcomeScreen');
-const gameScreen = document.getElementById('gameScreen');
-const playerNameInput = document.getElementById('playerName');
-const joinGameBtn = document.getElementById('joinGameBtn');
-const gameUrl = document.getElementById('gameUrl');
-const dotsGrid = document.getElementById('dotsGrid');
-const waitingMessage = document.getElementById('waitingMessage');
-const gameOverMessage = document.getElementById('gameOverMessage');
-const winnerMessage = document.getElementById('winnerMessage');
-const disconnectedModal = document.getElementById('disconnectedModal');
-const closeDisconnectedModal = document.getElementById('closeDisconnectedModal');
-const newGameBtn = document.getElementById('newGameBtn');
-
-// Player elements
-const player1Name = document.getElementById('player1Name');
-const player2Name = document.getElementById('player2Name');
-const score1 = document.getElementById('score1');
-const score2 = document.getElementById('score2');
-const currentPlayerName = document.getElementById('currentPlayerName');
-const playerCount = document.getElementById('playerCount');
-const currentPlayerIndicator = document.getElementById('currentPlayerIndicator');
-
-// Panel elements
-const player1NamePanel = document.getElementById('player1NamePanel');
-const player2NamePanel = document.getElementById('player2NamePanel');
-const score1Panel = document.getElementById('score1Panel');
-const score2Panel = document.getElementById('score2Panel');
-const player1Initial = document.getElementById('player1Initial');
-const player2Initial = document.getElementById('player2Initial');
-const player1Status = document.getElementById('player1Status');
-const player2Status = document.getElementById('player2Status');
-const player1Info = document.getElementById('player1Info');
-const player2Info = document.getElementById('player2Info');
-const player1Score = document.getElementById('player1Score');
-const player2Score = document.getElementById('player2Score');
-
-// Game history
-const gameHistory = document.getElementById('gameHistory');
+let playerId = null;
+let playerName = null;
+let lastUpdate = 0;
+let pollInterval = null;
 
 // Initialize the game
 function init() {
-    // Set game URL
-    gameUrl.textContent = window.location.href;
+    showScreen('loading');
     
-    // Add event listeners
-    joinGameBtn.addEventListener('click', joinGame);
-    playerNameInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            joinGame();
-        }
-    });
+    // Generate unique player ID
+    playerId = 'player_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     
-    closeDisconnectedModal.addEventListener('click', () => {
-        disconnectedModal.classList.add('hidden');
-    });
+    // Check if we're in production (Vercel) or development
+    const isProduction = window.location.hostname !== 'localhost';
     
-    newGameBtn.addEventListener('click', () => {
-        if (socket) {
-            socket.emit('joinGame', playerName);
-        }
-    });
-    
-    // Connect to server
-    connectToServer();
+    if (isProduction) {
+        // Use API polling for Vercel
+        initAPIGame();
+    } else {
+        // Use Socket.IO for local development
+        initSocketGame();
+    }
 }
 
-// Connect to the server
+// API-based game (for Vercel)
+function initAPIGame() {
+    console.log('Initializing API-based game for Vercel');
+    
+    // Check if game exists
+    fetch('/api/game')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.gameState) {
+                // Join existing game
+                joinGameAPI();
+            } else {
+                // Show welcome screen
+                showScreen('welcome');
+            }
+        })
+        .catch(error => {
+            console.error('Error checking game state:', error);
+            showScreen('welcome');
+        });
+}
+
+// Socket.IO-based game (for local development)
+function initSocketGame() {
+    console.log('Initializing Socket.IO-based game for local development');
+    
+    // Load Socket.IO from CDN
+    const script = document.createElement('script');
+    script.src = 'https://cdn.socket.io/4.7.4/socket.io.min.js';
+    script.onload = () => {
+        connectToServer();
+    };
+    document.head.appendChild(script);
+}
+
+// API game functions
+function joinGameAPI() {
+    if (!playerName) {
+        showScreen('welcome');
+        return;
+    }
+    
+    fetch('/api/join', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            playerName: playerName,
+            playerId: playerId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            gameState = data.gameState;
+            showScreen('game');
+            renderGame();
+            startPolling();
+        } else {
+            alert('Error joining game: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error joining game:', error);
+        alert('Error joining game. Please try again.');
+    });
+}
+
+function makeMoveAPI(lineType, row, col) {
+    fetch('/api/move', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            playerId: playerId,
+            lineType: lineType,
+            row: row,
+            col: col
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            gameState = data.gameState;
+            renderGame();
+            
+            if (data.completedBoxes && data.completedBoxes.length > 0) {
+                showScoreAnimation(data.scoreGained);
+            }
+            
+            if (data.gameOver) {
+                setTimeout(() => {
+                    const winner = gameState.scores[0] > gameState.scores[1] ? 
+                        gameState.players[0] : gameState.players[1];
+                    alert(`Game Over! ${winner} wins!`);
+                    stopPolling();
+                }, 1000);
+            }
+        } else {
+            alert('Invalid move: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error making move:', error);
+        alert('Error making move. Please try again.');
+    });
+}
+
+function startPolling() {
+    pollInterval = setInterval(() => {
+        fetch(`/api/poll/${lastUpdate}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.hasUpdate) {
+                    gameState = data.gameState;
+                    lastUpdate = data.lastUpdate;
+                    renderGame();
+                }
+            })
+            .catch(error => {
+                console.error('Polling error:', error);
+            });
+    }, 1000); // Poll every second
+}
+
+function stopPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+// Socket.IO game functions (for local development)
 function connectToServer() {
-    socket = io();
+    const socket = io();
     
     socket.on('connect', () => {
         console.log('Connected to server');
-        hideLoadingScreen();
-        showWelcomeScreen();
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('Disconnected from server');
-        showDisconnectedMessage();
+        showScreen('welcome');
     });
     
     socket.on('gameJoined', (data) => {
-        console.log('Game joined:', data);
+        gameState = data.gameState;
         playerId = data.playerId;
         playerName = data.playerName;
-        gameState = data.gameState;
-        
-        hideWelcomeScreen();
-        showGameScreen();
+        showScreen('game');
         renderGame();
-        updatePlayerInfo();
-        
-        if (gameState.players.length === 1) {
-            showWaitingMessage();
-        }
     });
     
     socket.on('playerJoined', (data) => {
-        console.log('Player joined:', data);
         gameState = data.gameState;
-        hideWaitingMessage();
-        updatePlayerInfo();
         renderGame();
+        updatePlayerInfo();
     });
     
     socket.on('moveMade', (data) => {
-        console.log('Move made:', data);
         gameState = data.gameState;
-        renderMove(data.move, data.completedBoxes, data.scoreGained);
-        updateScores();
-        updateCurrentPlayer();
+        renderGame();
+        
+        if (data.completedBoxes && data.completedBoxes.length > 0) {
+            showScoreAnimation(data.scoreGained);
+        }
         
         if (data.gameOver) {
             setTimeout(() => {
-                showGameOverMessage();
+                const winner = gameState.scores[0] > gameState.scores[1] ? 
+                    gameState.players[0] : gameState.players[1];
+                alert(`Game Over! ${winner} wins!`);
             }, 1000);
         }
     });
     
-    socket.on('gameOver', (data) => {
-        console.log('Game over:', data);
-        showGameOverMessage(data.winner, data.scores);
-    });
-    
-    socket.on('playerDisconnected', (data) => {
-        console.log('Player disconnected:', data);
-        showDisconnectedModal();
-    });
-    
-    socket.on('gameEnded', (data) => {
-        console.log('Game ended:', data);
-        showGameEndedMessage(data.reason);
-    });
-    
     socket.on('gameFull', () => {
-        alert('Game is full. Please try again later.');
+        alert('Game is full. Please wait for a spot to open up.');
     });
     
     socket.on('moveError', (message) => {
-        alert('Move error: ' + message);
+        alert('Invalid move: ' + message);
     });
     
-    socket.on('noActiveGame', () => {
-        console.log('No active game');
-        showWelcomeScreen();
+    socket.on('playerDisconnected', (data) => {
+        alert(`${data.playerName} disconnected. Waiting for reconnection...`);
     });
+    
+    socket.on('gameEnded', (data) => {
+        alert('Game ended: ' + data.reason);
+        showScreen('welcome');
+    });
+    
+    window.socket = socket;
 }
 
-// Join game
 function joinGame() {
-    const name = playerNameInput.value.trim();
-    if (!name) {
+    if (!playerName) {
         alert('Please enter your name');
         return;
     }
     
-    if (name.length > 20) {
-        alert('Name must be 20 characters or less');
-        return;
-    }
-    
-    playerName = name;
-    socket.emit('joinGame', name);
-}
-
-// Show/hide screens
-function hideLoadingScreen() {
-    loadingScreen.classList.add('hidden');
-}
-
-function showWelcomeScreen() {
-    welcomeScreen.classList.remove('hidden');
-    gameScreen.classList.add('hidden');
-}
-
-function hideWelcomeScreen() {
-    welcomeScreen.classList.add('hidden');
-}
-
-function showGameScreen() {
-    gameScreen.classList.remove('hidden');
-}
-
-function showWaitingMessage() {
-    waitingMessage.classList.remove('hidden');
-    gameOverMessage.classList.add('hidden');
-}
-
-function hideWaitingMessage() {
-    waitingMessage.classList.add('hidden');
-}
-
-function showGameOverMessage(winner, scores) {
-    gameOverMessage.classList.remove('hidden');
-    waitingMessage.classList.add('hidden');
-    
-    if (winner && scores) {
-        const winnerText = winner === playerName ? 'You won!' : `${winner} won!`;
-        const scoreText = `Final score: ${scores[0]} - ${scores[1]}`;
-        winnerMessage.textContent = `${winnerText} ${scoreText}`;
+    if (window.socket) {
+        window.socket.emit('joinGame', playerName);
+    } else {
+        joinGameAPI();
     }
 }
 
-function showGameEndedMessage(reason) {
-    gameOverMessage.classList.remove('hidden');
-    waitingMessage.classList.add('hidden');
-    winnerMessage.textContent = `Game ended: ${reason}`;
+function makeMove(lineType, row, col) {
+    if (window.socket) {
+        window.socket.emit('makeMove', { lineType, row, col });
+    } else {
+        makeMoveAPI(lineType, row, col);
+    }
 }
 
-function showDisconnectedModal() {
-    disconnectedModal.classList.remove('hidden');
+// UI Functions
+function showScreen(screenName) {
+    // Hide all screens
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.style.display = 'none';
+    });
+    
+    // Show the requested screen
+    const screen = document.getElementById(screenName + 'Screen');
+    if (screen) {
+        screen.style.display = 'flex';
+    }
 }
 
-function showDisconnectedMessage() {
-    alert('Connection lost. Please refresh the page to reconnect.');
+function updatePlayerInfo() {
+    const playerInfo = document.getElementById('playerInfo');
+    if (playerInfo && gameState) {
+        const players = gameState.players.map(id => getPlayerName(id));
+        playerInfo.innerHTML = `
+            <div class="player">
+                <span class="player-name">${players[0] || 'Waiting...'}</span>
+                <span class="player-score">${gameState.scores[0]}</span>
+            </div>
+            <div class="vs">VS</div>
+            <div class="player">
+                <span class="player-name">${players[1] || 'Waiting...'}</span>
+                <span class="player-score">${gameState.scores[1]}</span>
+            </div>
+        `;
+    }
 }
 
-// Render the game grid
+function updateCurrentPlayer() {
+    const currentPlayerEl = document.getElementById('currentPlayer');
+    if (currentPlayerEl && gameState) {
+        const currentPlayerName = getPlayerName(gameState.players[gameState.currentPlayer]);
+        currentPlayerEl.textContent = `Current Turn: ${currentPlayerName}`;
+    }
+}
+
+function updateScores() {
+    const scoresEl = document.getElementById('scores');
+    if (scoresEl && gameState) {
+        scoresEl.innerHTML = `
+            <div class="score">
+                <span class="player-name">${getPlayerName(gameState.players[0])}</span>
+                <span class="score-value">${gameState.scores[0]}</span>
+            </div>
+            <div class="score">
+                <span class="player-name">${getPlayerName(gameState.players[1])}</span>
+                <span class="score-value">${gameState.scores[1]}</span>
+            </div>
+        `;
+    }
+}
+
+function getPlayerName(playerId) {
+    if (!playerId) return 'Unknown';
+    return playerId === playerId ? playerName : `Player ${gameState.players.indexOf(playerId) + 1}`;
+}
+
 function renderGame() {
     if (!gameState) return;
     
-    dotsGrid.innerHTML = '';
-    dotsGrid.style.width = `${(gameSize + 1) * dotSpacing}px`;
-    dotsGrid.style.height = `${(gameSize + 1) * dotSpacing}px`;
-    
-    // Create dots
-    for (let row = 0; row <= gameSize; row++) {
-        for (let col = 0; col <= gameSize; col++) {
-            createDot(row, col);
-        }
-    }
-    
-    // Create lines
+    renderDots();
     renderLines();
-    
-    // Create boxes
     renderBoxes();
+    updatePlayerInfo();
+    updateCurrentPlayer();
+    updateScores();
 }
 
-// Create a dot
+function renderDots() {
+    const gameBoard = document.getElementById('gameBoard');
+    if (!gameBoard) return;
+    
+    // Clear existing dots
+    const existingDots = gameBoard.querySelectorAll('.dot');
+    existingDots.forEach(dot => dot.remove());
+    
+    // Create dots
+    const size = 6; // 6x6 grid
+    for (let row = 0; row <= size; row++) {
+        for (let col = 0; col <= size; col++) {
+            const dot = createDot(row, col);
+            gameBoard.appendChild(dot);
+        }
+    }
+}
+
 function createDot(row, col) {
     const dot = document.createElement('div');
     dot.className = 'dot';
-    dot.style.left = `${col * dotSpacing}px`;
-    dot.style.top = `${row * dotSpacing}px`;
+    dot.style.left = `${col * 60 + 20}px`;
+    dot.style.top = `${row * 60 + 20}px`;
     dot.dataset.row = row;
     dot.dataset.col = col;
     
     dot.addEventListener('click', () => handleDotClick(row, col));
-    dot.addEventListener('mouseenter', () => handleDotHover(row, col));
-    dot.addEventListener('mouseleave', () => handleDotLeave());
     
-    dotsGrid.appendChild(dot);
+    return dot;
 }
 
-// Handle dot click
 function handleDotClick(row, col) {
-    if (!gameState || gameState.gameOver) return;
+    // Find the closest line to this dot
+    const lines = document.querySelectorAll('.line');
+    let closestLine = null;
+    let minDistance = Infinity;
     
-    if (selectedDot) {
-        const [selectedRow, selectedCol] = selectedDot;
+    lines.forEach(line => {
+        const lineRect = line.getBoundingClientRect();
+        const dotRect = document.querySelector(`[data-row="${row}"][data-col="${col}"]`).getBoundingClientRect();
         
-        // Determine line type and position
-        let lineType, lineRow, lineCol;
+        const distance = Math.sqrt(
+            Math.pow(lineRect.left - dotRect.left, 2) + 
+            Math.pow(lineRect.top - dotRect.top, 2)
+        );
         
-        if (row === selectedRow) {
-            // Horizontal line
-            lineType = 'h';
-            lineRow = row;
-            lineCol = Math.min(col, selectedCol);
-        } else if (col === selectedCol) {
-            // Vertical line
-            lineType = 'v';
-            lineRow = Math.min(row, selectedRow);
-            lineCol = col;
-        } else {
-            // Invalid move - dots not adjacent
-            clearSelectedDot();
-            return;
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestLine = line;
         }
+    });
+    
+    if (closestLine && minDistance < 30) {
+        const lineType = closestLine.dataset.type;
+        const lineRow = parseInt(closestLine.dataset.row);
+        const lineCol = parseInt(closestLine.dataset.col);
         
-        // Make move
-        socket.emit('makeMove', {
-            lineType: lineType,
-            row: lineRow,
-            col: lineCol
-        });
-        
-        clearSelectedDot();
-    } else {
-        selectDot(row, col);
+        makeMove(lineType, lineRow, lineCol);
     }
 }
 
-// Handle dot hover
-function handleDotHover(row, col) {
-    if (selectedDot) {
-        const [selectedRow, selectedCol] = selectedDot;
-        
-        if (row === selectedRow || col === selectedCol) {
-            // Show preview line
-            showPreviewLine(selectedRow, selectedCol, row, col);
-        }
-    }
-}
-
-// Handle dot leave
-function handleDotLeave() {
-    hidePreviewLine();
-}
-
-// Select a dot
 function selectDot(row, col) {
-    clearSelectedDot();
-    selectedDot = [row, col];
+    // Remove previous selection
+    document.querySelectorAll('.dot.selected').forEach(dot => {
+        dot.classList.remove('selected');
+    });
     
+    // Select current dot
     const dot = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
     if (dot) {
-        dot.classList.add('active');
+        dot.classList.add('selected');
     }
 }
 
-// Clear selected dot
-function clearSelectedDot() {
-    if (selectedDot) {
-        const [row, col] = selectedDot;
-        const dot = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-        if (dot) {
-            dot.classList.remove('active');
-        }
-        selectedDot = null;
-    }
-    hidePreviewLine();
-}
-
-// Show preview line
-function showPreviewLine(row1, col1, row2, col2) {
-    hidePreviewLine();
-    
-    const previewLine = document.createElement('div');
-    previewLine.className = 'line preview';
-    previewLine.id = 'previewLine';
-    
-    if (row1 === row2) {
-        // Horizontal line
-        previewLine.classList.add('horizontal');
-        const left = Math.min(col1, col2) * dotSpacing + 6;
-        const width = dotSpacing - 12;
-        previewLine.style.left = `${left}px`;
-        previewLine.style.top = `${row1 * dotSpacing + 4}px`;
-        previewLine.style.width = `${width}px`;
-    } else {
-        // Vertical line
-        previewLine.classList.add('vertical');
-        const top = Math.min(row1, row2) * dotSpacing + 6;
-        const height = dotSpacing - 12;
-        previewLine.style.left = `${col1 * dotSpacing + 4}px`;
-        previewLine.style.top = `${top}px`;
-        previewLine.style.height = `${height}px`;
-    }
-    
-    dotsGrid.appendChild(previewLine);
-}
-
-// Hide preview line
-function hidePreviewLine() {
-    const previewLine = document.getElementById('previewLine');
-    if (previewLine) {
-        previewLine.remove();
-    }
-}
-
-// Render lines
 function renderLines() {
-    if (!gameState) return;
+    const gameBoard = document.getElementById('gameBoard');
+    if (!gameBoard || !gameState) return;
+    
+    // Clear existing lines
+    const existingLines = gameBoard.querySelectorAll('.line');
+    existingLines.forEach(line => line.remove());
     
     // Render horizontal lines
     Object.entries(gameState.grid.horizontal).forEach(([key, playerId]) => {
         if (playerId !== null) {
             const [row, col] = key.split('-').map(Number);
-            createLine('h', row, col, playerId);
+            const line = createLine('h', row, col, playerId);
+            gameBoard.appendChild(line);
         }
     });
     
@@ -397,253 +406,160 @@ function renderLines() {
     Object.entries(gameState.grid.vertical).forEach(([key, playerId]) => {
         if (playerId !== null) {
             const [row, col] = key.split('-').map(Number);
-            createLine('v', row, col, playerId);
+            const line = createLine('v', row, col, playerId);
+            gameBoard.appendChild(line);
         }
     });
 }
 
-// Create a line
 function createLine(type, row, col, playerId) {
     const line = document.createElement('div');
-    line.className = `line ${type === 'h' ? 'horizontal' : 'vertical'}`;
-    line.id = `line-${type}-${row}-${col}`;
-    
-    const playerIndex = gameState.players.indexOf(playerId);
-    if (playerIndex === 0) {
-        line.classList.add('player1');
-    } else if (playerIndex === 1) {
-        line.classList.add('player2');
-    }
+    line.className = 'line';
+    line.dataset.type = type;
+    line.dataset.row = row;
+    line.dataset.col = col;
     
     if (type === 'h') {
-        line.style.left = `${col * dotSpacing + 6}px`;
-        line.style.top = `${row * dotSpacing + 4}px`;
-        line.style.width = `${dotSpacing - 12}px`;
+        line.style.left = `${col * 60 + 30}px`;
+        line.style.top = `${row * 60 + 15}px`;
+        line.style.width = '60px';
+        line.style.height = '10px';
     } else {
-        line.style.left = `${col * dotSpacing + 4}px`;
-        line.style.top = `${row * dotSpacing + 6}px`;
-        line.style.height = `${dotSpacing - 12}px`;
+        line.style.left = `${col * 60 + 15}px`;
+        line.style.top = `${row * 60 + 30}px`;
+        line.style.width = '10px';
+        line.style.height = '60px';
     }
     
-    dotsGrid.appendChild(line);
+    // Color based on player
+    const isCurrentPlayer = playerId === playerId;
+    line.style.backgroundColor = isCurrentPlayer ? '#3b82f6' : '#ef4444';
+    
+    return line;
 }
 
-// Render boxes
 function renderBoxes() {
-    if (!gameState) return;
+    const gameBoard = document.getElementById('gameBoard');
+    if (!gameBoard || !gameState) return;
     
+    // Clear existing boxes
+    const existingBoxes = gameBoard.querySelectorAll('.box');
+    existingBoxes.forEach(box => box.remove());
+    
+    // Render completed boxes
     Object.entries(gameState.grid.boxes).forEach(([key, playerId]) => {
         if (playerId !== null) {
             const [row, col] = key.split('-').map(Number);
-            createBox(row, col, playerId);
+            const box = createBox(row, col, playerId);
+            gameBoard.appendChild(box);
         }
     });
 }
 
-// Create a box
 function createBox(row, col, playerId) {
     const box = document.createElement('div');
     box.className = 'box';
-    box.id = `box-${row}-${col}`;
+    box.style.left = `${col * 60 + 30}px`;
+    box.style.top = `${row * 60 + 30}px`;
+    box.style.width = '60px';
+    box.style.height = '60px';
     
-    const playerIndex = gameState.players.indexOf(playerId);
-    if (playerIndex === 0) {
-        box.classList.add('player1');
-    } else if (playerIndex === 1) {
-        box.classList.add('player2');
-    }
+    // Color based on player
+    const isCurrentPlayer = playerId === playerId;
+    box.style.backgroundColor = isCurrentPlayer ? '#3b82f6' : '#ef4444';
+    box.style.opacity = '0.3';
     
-    box.style.left = `${col * dotSpacing + 6}px`;
-    box.style.top = `${row * dotSpacing + 6}px`;
-    box.style.width = `${dotSpacing - 12}px`;
-    box.style.height = `${dotSpacing - 12}px`;
-    
-    // Add score indicator
-    const scoreIndicator = document.createElement('div');
-    scoreIndicator.className = 'score-indicator';
-    scoreIndicator.textContent = playerIndex === 0 ? '1' : '2';
-    box.appendChild(scoreIndicator);
-    
-    dotsGrid.appendChild(box);
+    return box;
 }
 
-// Render a move
-function renderMove(move, completedBoxes, scoreGained) {
-    // Create the line
-    createLine(move.lineType, move.row, move.col, move.player);
+function renderMove(move) {
+    if (!move) return;
     
-    // Add completion animation
-    const line = document.getElementById(`line-${move.lineType}-${move.row}-${move.col}`);
-    if (line) {
-        line.classList.add('completed');
-    }
+    const gameBoard = document.getElementById('gameBoard');
+    const line = createLine(move.type, move.row, move.col, move.player);
+    gameBoard.appendChild(line);
+}
+
+function showScoreAnimation(score) {
+    const animation = document.createElement('div');
+    animation.className = 'score-animation';
+    animation.textContent = `+${score}`;
+    animation.style.position = 'absolute';
+    animation.style.top = '50%';
+    animation.style.left = '50%';
+    animation.style.transform = 'translate(-50%, -50%)';
+    animation.style.fontSize = '48px';
+    animation.style.fontWeight = 'bold';
+    animation.style.color = '#10b981';
+    animation.style.zIndex = '1000';
     
-    // Create completed boxes
-    if (completedBoxes && completedBoxes.length > 0) {
-        completedBoxes.forEach(boxKey => {
-            const [row, col] = boxKey.split('-').map(Number);
-            createBox(row, col, move.player);
-            
-            const box = document.getElementById(`box-${row}-${col}`);
-            if (box) {
-                box.classList.add('completed');
+    document.body.appendChild(animation);
+    
+    // Animate
+    setTimeout(() => {
+        animation.style.transform = 'translate(-50%, -50%) scale(1.5)';
+        animation.style.opacity = '0';
+    }, 100);
+    
+    setTimeout(() => {
+        document.body.removeChild(animation);
+    }, 1000);
+}
+
+function updateGameHistory() {
+    fetch('/api/history')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const historyEl = document.getElementById('gameHistory');
+                if (historyEl) {
+                    historyEl.innerHTML = data.history.map(game => `
+                        <div class="history-item">
+                            <div class="history-players">${game.players.join(' vs ')}</div>
+                            <div class="history-winner">Winner: ${game.winner}</div>
+                            <div class="history-score">${game.scores.join(' - ')}</div>
+                        </div>
+                    `).join('');
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading game history:', error);
+        });
+}
+
+// Event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    
+    // Welcome screen
+    const joinButton = document.getElementById('joinButton');
+    if (joinButton) {
+        joinButton.addEventListener('click', () => {
+            const nameInput = document.getElementById('playerName');
+            if (nameInput) {
+                playerName = nameInput.value.trim();
+                if (playerName) {
+                    joinGame();
+                } else {
+                    alert('Please enter your name');
+                }
             }
         });
     }
     
-    // Show score gained animation
-    if (scoreGained > 0) {
-        showScoreAnimation(scoreGained);
-    }
-}
-
-// Show score animation
-function showScoreAnimation(score) {
-    const animation = document.createElement('div');
-    animation.className = 'fixed inset-0 flex items-center justify-center z-50 pointer-events-none';
-    animation.innerHTML = `
-        <div class="text-6xl font-bold text-green-500 animate-bounce-gentle">
-            +${score}
-        </div>
-    `;
-    
-    document.body.appendChild(animation);
-    
-    setTimeout(() => {
-        animation.remove();
-    }, 2000);
-}
-
-// Update player information
-function updatePlayerInfo() {
-    if (!gameState) return;
-    
-    const players = gameState.players;
-    const scores = gameState.scores;
-    
-    // Update player names
-    if (players.length > 0) {
-        const name1 = getPlayerName(players[0]);
-        player1Name.textContent = name1;
-        player1NamePanel.textContent = name1;
-        player1Initial.textContent = name1.charAt(0).toUpperCase();
-        player1Info.classList.remove('opacity-50');
-        player1Status.classList.remove('bg-gray-400');
-        player1Status.classList.add('bg-green-500');
-    }
-    
-    if (players.length > 1) {
-        const name2 = getPlayerName(players[1]);
-        player2Name.textContent = name2;
-        player2NamePanel.textContent = name2;
-        player2Initial.textContent = name2.charAt(0).toUpperCase();
-        player2Info.classList.remove('opacity-50');
-        player2Status.classList.remove('bg-gray-400');
-        player2Status.classList.add('bg-green-500');
-    }
-    
-    // Update scores
-    score1.textContent = scores[0] || 0;
-    score2.textContent = scores[1] || 0;
-    score1Panel.textContent = scores[0] || 0;
-    score2Panel.textContent = scores[1] || 0;
-    
-    // Update player count
-    playerCount.textContent = `${players.length}/2`;
-    
-    // Update current player
-    updateCurrentPlayer();
-}
-
-// Update current player indicator
-function updateCurrentPlayer() {
-    if (!gameState) return;
-    
-    const currentPlayerId = gameState.players[gameState.currentPlayer];
-    const currentPlayerName = getPlayerName(currentPlayerId);
-    
-    if (currentPlayerId === playerId) {
-        document.getElementById('currentPlayerName').textContent = 'Your turn';
-        currentPlayerIndicator.classList.remove('bg-red-100', 'dark:bg-red-900/30');
-        currentPlayerIndicator.classList.add('bg-blue-100', 'dark:bg-blue-900/30');
-    } else {
-        document.getElementById('currentPlayerName').textContent = `${currentPlayerName}'s turn`;
-        currentPlayerIndicator.classList.remove('bg-blue-100', 'dark:bg-blue-900/30');
-        currentPlayerIndicator.classList.add('bg-red-100', 'dark:bg-red-900/30');
-    }
-}
-
-// Update scores
-function updateScores() {
-    if (!gameState) return;
-    
-    const scores = gameState.scores;
-    score1.textContent = scores[0];
-    score2.textContent = scores[1];
-    score1Panel.textContent = scores[0];
-    score2Panel.textContent = scores[1];
-}
-
-// Get player name by ID
-function getPlayerName(playerId) {
-    // This would normally come from the server
-    // For now, we'll use the stored player name or a default
-    if (playerId === playerId) {
-        return playerName;
-    }
-    return 'Player ' + (gameState.players.indexOf(playerId) + 1);
-}
-
-// Update game history
-function updateGameHistory(history) {
-    if (!history || history.length === 0) {
-        gameHistory.innerHTML = `
-            <div class="text-center text-gray-500 dark:text-gray-400 text-sm py-4">
-                No recent games
-            </div>
-        `;
-        return;
-    }
-    
-    const recentGames = history.slice(-5); // Show last 5 games
-    gameHistory.innerHTML = recentGames.map(game => `
-        <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div class="flex justify-between items-center text-sm">
-                <div>
-                    <div class="font-medium text-gray-800 dark:text-white">
-                        ${game.players.join(' vs ')}
-                    </div>
-                    <div class="text-gray-600 dark:text-gray-400">
-                        ${game.scores[0]} - ${game.scores[1]}
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="font-medium ${game.winner === 'Disconnected' ? 'text-red-500' : 'text-green-500'}">
-                        ${game.winner === 'Disconnected' ? 'Disconnected' : game.winner}
-                    </div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">
-                        ${new Date(game.completedAt).toLocaleDateString()}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `).join('');
-}
-
-// Initialize the game when the page loads
-document.addEventListener('DOMContentLoaded', init);
-
-// Handle window resize
-window.addEventListener('resize', () => {
-    if (gameState) {
-        renderGame();
-    }
-});
-
-// Handle page visibility change (for reconnection)
-document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && socket && !socket.connected) {
-        console.log('Page became visible, attempting to reconnect...');
-        socket.connect();
+    // Reset button
+    const resetButton = document.getElementById('resetButton');
+    if (resetButton) {
+        resetButton.addEventListener('click', () => {
+            fetch('/api/reset', { method: 'POST' })
+                .then(() => {
+                    showScreen('welcome');
+                    stopPolling();
+                })
+                .catch(error => {
+                    console.error('Error resetting game:', error);
+                });
+        });
     }
 }); 

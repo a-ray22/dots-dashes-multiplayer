@@ -2,22 +2,22 @@
   "version": 2,
   "builds": [
     {
-      "src": "server.js",
+      "src": "api/game.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/socket.io/(.*)",
-      "dest": "/server.js"
+      "src": "/api/(.*)",
+      "dest": "/api/game.js"
     },
     {
       "src": "/(.*)",
-      "dest": "/server.js"
+      "dest": "/public/$1"
     }
   ],
   "functions": {
-    "server.js": {
+    "api/game.js": {
       "maxDuration": 30
     }
   },
