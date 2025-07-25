@@ -28,22 +28,8 @@ function init() {
 function initAPIGame() {
     console.log('Initializing API-based game for Vercel');
     
-    // Check if game exists
-    fetch('/api/game')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.gameState) {
-                // Join existing game
-                joinGameAPI();
-            } else {
-                // Show welcome screen
-                showScreen('welcome');
-            }
-        })
-        .catch(error => {
-            console.error('Error checking game state:', error);
-            showScreen('welcome');
-        });
+    // Always show welcome screen first for API-based games
+    showScreen('welcome');
 }
 
 // Socket.IO-based game (for local development)
@@ -241,6 +227,7 @@ function makeMove(lineType, row, col) {
 
 // UI Functions
 function showScreen(screenName) {
+    console.log('Showing screen:', screenName);
     // Hide all screens
     document.querySelectorAll('.screen').forEach(screen => {
         screen.style.display = 'none';
@@ -248,8 +235,11 @@ function showScreen(screenName) {
     
     // Show the requested screen
     const screen = document.getElementById(screenName + 'Screen');
+    console.log('Screen element found:', screen);
     if (screen) {
         screen.style.display = 'flex';
+    } else {
+        console.error('Screen not found:', screenName + 'Screen');
     }
 }
 
@@ -530,15 +520,19 @@ function updateGameHistory() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing game...');
     init();
     
     // Welcome screen
-    const joinButton = document.getElementById('joinButton');
+    const joinButton = document.getElementById('joinGameBtn');
+    console.log('Join button found:', joinButton);
     if (joinButton) {
         joinButton.addEventListener('click', () => {
+            console.log('Join button clicked');
             const nameInput = document.getElementById('playerName');
             if (nameInput) {
                 playerName = nameInput.value.trim();
+                console.log('Player name:', playerName);
                 if (playerName) {
                     joinGame();
                 } else {
