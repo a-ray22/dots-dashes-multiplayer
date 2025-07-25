@@ -66,6 +66,130 @@
             </div>
         </div>
 
+        <!-- Room Options Screen -->
+        <div id="roomOptionsScreen" class="fixed inset-0 bg-gradient-to-br from-green-50 to-blue-100 dark:from-green-900/30 dark:to-blue-900/30 flex items-center justify-center z-40" style="display: none;">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <div class="text-center mb-8">
+                    <div class="animate-bounce-gentle mb-4">
+                        <i class="fas fa-door-open text-5xl text-green-500"></i>
+                    </div>
+                    <h1 class="title-medium text-gray-800 dark:text-white mb-2">Join a Room</h1>
+                    <p class="text-gray-600 dark:text-gray-300">Create a new room or join an existing one</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <button 
+                        id="createRoomBtn" 
+                        class="w-full bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+                    >
+                        <i class="fas fa-plus mr-2"></i>
+                        Create New Room
+                    </button>
+                    
+                    <div class="relative">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">or</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="roomCode" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Room Code
+                        </label>
+                        <input 
+                            type="text" 
+                            id="roomCode" 
+                            class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white font-mono text-center"
+                            placeholder="Enter 6-digit code..."
+                            maxlength="6"
+                            style="text-transform: uppercase;"
+                        >
+                    </div>
+                    
+                    <button 
+                        id="joinRoomBtn" 
+                        class="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+                    >
+                        <i class="fas fa-sign-in-alt mr-2"></i>
+                        Join Room
+                    </button>
+                </div>
+                
+                <div class="mt-6 text-center">
+                    <button 
+                        onclick="showScreen('welcome')"
+                        class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    >
+                        <i class="fas fa-arrow-left mr-1"></i>
+                        Back to Welcome
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Room Screen -->
+        <div id="roomScreen" class="fixed inset-0 bg-gradient-to-br from-green-50 to-blue-100 dark:from-green-900/30 dark:to-blue-900/30 flex items-center justify-center z-40" style="display: none;">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <div class="text-center mb-8">
+                    <div class="animate-bounce-gentle mb-4">
+                        <i class="fas fa-users text-5xl text-green-500"></i>
+                    </div>
+                    <h1 class="title-medium text-gray-800 dark:text-white mb-2">Game Room</h1>
+                    <p class="text-gray-600 dark:text-gray-300">Waiting for players...</p>
+                </div>
+                
+                <div class="space-y-6">
+                    <!-- Room Code -->
+                    <div class="text-center">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Room Code
+                        </label>
+                        <div class="p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                            <span id="roomCodeDisplay" class="text-2xl font-mono font-bold text-gray-800 dark:text-white"></span>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            Share this code with your friend
+                        </p>
+                    </div>
+                    
+                    <!-- Player List -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Players
+                        </label>
+                        <div id="playerList" class="space-y-2">
+                            <div class="text-center text-gray-500 dark:text-gray-400">
+                                Waiting for players...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Game Controls -->
+                    <div class="space-y-3">
+                        <button 
+                            id="startGameBtn" 
+                            class="w-full bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled
+                        >
+                            <i class="fas fa-play mr-2"></i>
+                            Waiting for player...
+                        </button>
+                        
+                        <button 
+                            id="leaveRoomBtn" 
+                            class="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+                        >
+                            <i class="fas fa-sign-out-alt mr-2"></i>
+                            Leave Room
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Game Screen -->
         <div id="gameScreen" style="display: none;">
             <!-- Header -->
@@ -109,118 +233,79 @@
                 </div>
             </header>
 
-            <!-- Main Game Area -->
+            <!-- Main Content -->
             <main class="max-w-6xl mx-auto px-4 py-8">
-                <div class="grid lg:grid-cols-3 gap-8">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <!-- Game Board -->
                     <div class="lg:col-span-2">
                         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
-                            <div class="flex items-center justify-between mb-6">
-                                <h2 class="text-xl font-semibold text-gray-800 dark:text-white">Game Board</h2>
-                                <div class="flex items-center space-x-2">
-                                    <button id="newGameBtn" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors">
-                                        <i class="fas fa-plus mr-1"></i>
-                                        New Game
-                                    </button>
+                            <div class="text-center mb-6">
+                                <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Game Board</h2>
+                                <div id="currentPlayer" class="text-lg text-blue-600 dark:text-blue-400">
+                                    Current Turn: Waiting...
                                 </div>
                             </div>
                             
-                            <!-- Game Grid -->
-                            <div id="gameGrid" class="flex justify-center">
-                                <div id="dotsGrid" class="relative bg-graph-paper rounded-lg p-8">
-                                    <!-- Dots and lines will be generated here -->
+                            <div class="flex justify-center">
+                                <div id="gameBoard" class="relative bg-graph-paper rounded-lg p-4" style="width: 440px; height: 440px;">
+                                    <!-- Dots, lines, and boxes will be rendered here -->
                                 </div>
                             </div>
                             
-                            <!-- Game Status -->
-                            <div id="gameStatus" class="mt-6 text-center">
-                                <div id="waitingMessage" class="hidden">
-                                    <div class="flex items-center justify-center space-x-2 text-gray-600 dark:text-gray-400">
-                                        <div class="animate-spin">
-                                            <i class="fas fa-spinner"></i>
-                                        </div>
-                                        <span>Waiting for another player to join...</span>
-                                    </div>
-                                </div>
+                            <!-- Game Controls -->
+                            <div class="flex justify-center space-x-4 mt-6">
+                                <button 
+                                    id="resetButton" 
+                                    class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+                                >
+                                    <i class="fas fa-redo mr-2"></i>
+                                    Reset Game
+                                </button>
                                 
-                                <div id="gameOverMessage" class="hidden">
-                                    <div class="bg-gradient-to-r from-green-100 to-blue-100 dark:from-green-900/30 dark:to-blue-900/30 rounded-lg p-4">
-                                        <h3 class="text-lg font-semibold text-green-800 dark:text-green-300 mb-2">
-                                            Game Over!
-                                        </h3>
-                                        <p id="winnerMessage" class="text-green-700 dark:text-green-400"></p>
-                                    </div>
-                                </div>
+                                <button 
+                                    id="backToRoomBtn" 
+                                    class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+                                >
+                                    <i class="fas fa-arrow-left mr-2"></i>
+                                    Back to Room
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Game Info Panel -->
-                    <div class="lg:col-span-1">
-                        <div class="space-y-6">
-                            <!-- Players Panel -->
-                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
-                                <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-                                    <i class="fas fa-users mr-2"></i>
-                                    Players
-                                </h3>
-                                <div class="space-y-3">
-                                    <div id="player1Info" class="flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                        <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                                            <span id="player1Initial">P1</span>
-                                        </div>
-                                        <div class="flex-1">
-                                            <div class="font-medium text-gray-800 dark:text-white" id="player1NamePanel">Player 1</div>
-                                            <div class="text-sm text-gray-600 dark:text-gray-400">Score: <span id="score1Panel">0</span></div>
-                                        </div>
-                                        <div id="player1Status" class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    </div>
-                                    
-                                    <div id="player2Info" class="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg opacity-50">
-                                        <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white font-semibold">
-                                            <span id="player2Initial">P2</span>
-                                        </div>
-                                        <div class="flex-1">
-                                            <div class="font-medium text-gray-800 dark:text-white" id="player2NamePanel">Waiting...</div>
-                                            <div class="text-sm text-gray-600 dark:text-gray-400">Score: <span id="score2Panel">0</span></div>
-                                        </div>
-                                        <div id="player2Status" class="w-2 h-2 bg-gray-400 rounded-full"></div>
-                                    </div>
-                                </div>
+                    <!-- Sidebar -->
+                    <div class="space-y-6">
+                        <!-- Player Info -->
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                                <i class="fas fa-users mr-2"></i>
+                                Players
+                            </h3>
+                            <div id="playerInfo" class="space-y-3">
+                                <!-- Player info will be rendered here -->
                             </div>
+                        </div>
 
-                            <!-- Game History -->
-                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
-                                <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-                                    <i class="fas fa-history mr-2"></i>
-                                    Recent Games
-                                </h3>
-                                <div id="gameHistory" class="space-y-2 max-h-48 overflow-y-auto">
-                                    <div class="text-center text-gray-500 dark:text-gray-400 text-sm py-4">
-                                        No recent games
-                                    </div>
-                                </div>
+                        <!-- Scores -->
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                                <i class="fas fa-trophy mr-2"></i>
+                                Scores
+                            </h3>
+                            <div id="scores" class="space-y-3">
+                                <!-- Scores will be rendered here -->
                             </div>
+                        </div>
 
-                            <!-- Instructions -->
-                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
-                                <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-                                    <i class="fas fa-info-circle mr-2"></i>
-                                    How to Play
-                                </h3>
-                                <div class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                                    <div class="flex items-start space-x-2">
-                                        <div class="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                                        <p>Click on dots to draw lines between them</p>
-                                    </div>
-                                    <div class="flex items-start space-x-2">
-                                        <div class="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                                        <p>Complete a box to score a point and get another turn</p>
-                                    </div>
-                                    <div class="flex items-start space-x-2">
-                                        <div class="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
-                                        <p>Player with the most boxes wins!</p>
-                                    </div>
+                        <!-- Game History -->
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                                <i class="fas fa-history mr-2"></i>
+                                Game History
+                            </h3>
+                            <div id="gameHistory" class="space-y-2 max-h-48 overflow-y-auto">
+                                <div class="text-center text-gray-500 dark:text-gray-400 text-sm">
+                                    No games played yet
                                 </div>
                             </div>
                         </div>

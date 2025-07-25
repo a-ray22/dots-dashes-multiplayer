@@ -12,11 +12,10 @@ const GAME_STATE_FILE = process.env.NODE_ENV === 'production'
   ? '/tmp/gameState.json' 
   : path.join(__dirname, '../gameState.json');
 
-// Game state management
+// Game state management with rooms
 let gameState = {
+  rooms: {},
   players: {},
-  currentGame: null,
-  gameHistory: [],
   lastUpdate: Date.now()
 };
 
@@ -44,6 +43,11 @@ async function saveGameState() {
   }
 }
 
+// Generate room code
+function generateRoomCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
 // Game logic
 class DotsAndDashesGame {
   constructor(size = 6) {
@@ -56,6 +60,7 @@ class DotsAndDashesGame {
     this.lastMove = null;
     this.createdAt = new Date().toISOString();
     this.gameId = Date.now().toString();
+    this.gameHistory = [];
   }
 
   createGrid() {
@@ -202,8 +207,19 @@ class DotsAndDashesGame {
       gameOver: this.gameOver,
       lastMove: this.lastMove,
       gameId: this.gameId,
-      createdAt: this.createdAt
+      createdAt: this.createdAt,
+      gameHistory: this.gameHistory
     };
+  }
+
+  resetGame() {
+    this.grid = this.createGrid();
+    this.currentPlayer = 0;
+    this.scores = [0, 0];
+    this.gameOver = false;
+    this.lastMove = null;
+    this.createdAt = new Date().toISOString();
+    this.gameId = Date.now().toString();
   }
 }
 
@@ -214,95 +230,197 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Dots and Dashes API is running!' });
 });
 
-// Get current game state
-app.get('/api/game', (req, res) => {
-  if (gameState.currentGame) {
-    res.json({
-      success: true,
-      gameState: gameState.currentGame.getGameState(),
-      lastUpdate: gameState.lastUpdate
-    });
-  } else {
-    res.json({
-      success: false,
-      message: 'No active game'
-    });
-  }
-});
-
-// Join game
-app.post('/api/join', (req, res) => {
+// Create a new room
+app.post('/api/rooms/create', (req, res) => {
   const { playerName, playerId } = req.body;
   
   if (!playerName || !playerId) {
     return res.status(400).json({ success: false, message: 'Player name and ID required' });
   }
 
-  if (gameState.currentGame && gameState.currentGame.players.length < 2) {
-    // Join existing game
-    if (!gameState.currentGame.players.includes(playerId)) {
-      gameState.currentGame.players.push(playerId);
-    }
-    gameState.players[playerId] = playerName;
-    
-    saveGameState();
-    
-    res.json({
-      success: true,
-      gameState: gameState.currentGame.getGameState(),
-      playerId: playerId,
-      playerName: playerName
-    });
-  } else if (!gameState.currentGame) {
-    // Create new game
-    gameState.currentGame = new DotsAndDashesGame();
-    gameState.currentGame.players.push(playerId);
-    gameState.players[playerId] = playerName;
-    
-    saveGameState();
-    
-    res.json({
-      success: true,
-      gameState: gameState.currentGame.getGameState(),
-      playerId: playerId,
-      playerName: playerName
-    });
-  } else {
-    res.json({ success: false, message: 'Game is full' });
+  const roomCode = generateRoomCode();
+  
+  // Create new room
+  gameState.rooms[roomCode] = {
+    code: roomCode,
+    players: [playerId],
+    currentGame: null,
+    createdAt: new Date().toISOString(),
+    lastActivity: Date.now()
+  };
+  
+  gameState.players[playerId] = {
+    name: playerName,
+    roomCode: roomCode,
+    joinedAt: new Date().toISOString()
+  };
+  
+  saveGameState();
+  
+  res.json({
+    success: true,
+    roomCode: roomCode,
+    playerId: playerId,
+    playerName: playerName
+  });
+});
+
+// Join an existing room
+app.post('/api/rooms/join', (req, res) => {
+  const { roomCode, playerName, playerId } = req.body;
+  
+  if (!roomCode || !playerName || !playerId) {
+    return res.status(400).json({ success: false, message: 'Room code, player name and ID required' });
   }
+
+  const room = gameState.rooms[roomCode];
+  if (!room) {
+    return res.status(404).json({ success: false, message: 'Room not found' });
+  }
+
+  if (room.players.length >= 2) {
+    return res.status(400).json({ success: false, message: 'Room is full' });
+  }
+
+  if (room.players.includes(playerId)) {
+    return res.status(400).json({ success: false, message: 'Player already in room' });
+  }
+
+  // Add player to room
+  room.players.push(playerId);
+  room.lastActivity = Date.now();
+  
+  gameState.players[playerId] = {
+    name: playerName,
+    roomCode: roomCode,
+    joinedAt: new Date().toISOString()
+  };
+  
+  saveGameState();
+  
+  res.json({
+    success: true,
+    roomCode: roomCode,
+    playerId: playerId,
+    playerName: playerName,
+    room: room
+  });
+});
+
+// Get room info
+app.get('/api/rooms/:roomCode', (req, res) => {
+  const { roomCode } = req.params;
+  
+  const room = gameState.rooms[roomCode];
+  if (!room) {
+    return res.status(404).json({ success: false, message: 'Room not found' });
+  }
+
+  // Get player names
+  const playerNames = room.players.map(playerId => gameState.players[playerId]?.name || 'Unknown');
+  
+  res.json({
+    success: true,
+    room: {
+      ...room,
+      playerNames: playerNames
+    }
+  });
+});
+
+// Start a new game in a room
+app.post('/api/rooms/:roomCode/start', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId } = req.body;
+  
+  const room = gameState.rooms[roomCode];
+  if (!room) {
+    return res.status(404).json({ success: false, message: 'Room not found' });
+  }
+
+  if (!room.players.includes(playerId)) {
+    return res.status(403).json({ success: false, message: 'Not in this room' });
+  }
+
+  if (room.players.length < 2) {
+    return res.status(400).json({ success: false, message: 'Need 2 players to start' });
+  }
+
+  // Create new game
+  const game = new DotsAndDashesGame();
+  game.players = room.players;
+  room.currentGame = game;
+  room.lastActivity = Date.now();
+  
+  saveGameState();
+  
+  res.json({
+    success: true,
+    gameState: game.getGameState()
+  });
+});
+
+// Get current game state
+app.get('/api/rooms/:roomCode/game', (req, res) => {
+  const { roomCode } = req.params;
+  
+  const room = gameState.rooms[roomCode];
+  if (!room) {
+    return res.status(404).json({ success: false, message: 'Room not found' });
+  }
+
+  if (!room.currentGame) {
+    return res.json({
+      success: false,
+      message: 'No active game'
+    });
+  }
+
+  res.json({
+    success: true,
+    gameState: room.currentGame.getGameState(),
+    lastUpdate: gameState.lastUpdate
+  });
 });
 
 // Make a move
-app.post('/api/move', (req, res) => {
+app.post('/api/rooms/:roomCode/move', (req, res) => {
+  const { roomCode } = req.params;
   const { playerId, lineType, row, col } = req.body;
   
-  if (!gameState.currentGame || gameState.currentGame.gameOver) {
+  const room = gameState.rooms[roomCode];
+  if (!room || !room.currentGame || room.currentGame.gameOver) {
     return res.status(400).json({ success: false, message: 'No active game' });
   }
 
-  const result = gameState.currentGame.makeMove(playerId, lineType, row, col);
+  if (!room.players.includes(playerId)) {
+    return res.status(403).json({ success: false, message: 'Not in this room' });
+  }
+
+  const result = room.currentGame.makeMove(playerId, lineType, row, col);
 
   if (result.success) {
     if (result.gameOver) {
-      const winner = gameState.currentGame.scores[0] > gameState.currentGame.scores[1] ? 0 : 1;
-      const winnerId = gameState.currentGame.players[winner];
+      const winner = room.currentGame.scores[0] > room.currentGame.scores[1] ? 0 : 1;
+      const winnerId = room.players[winner];
       
       // Save game to history
-      gameState.gameHistory.push({
-        gameId: gameState.currentGame.gameId,
-        players: gameState.currentGame.players.map(id => gameState.players[id]),
-        scores: gameState.currentGame.scores,
-        winner: gameState.players[winnerId],
-        createdAt: gameState.currentGame.createdAt,
+      room.currentGame.gameHistory.push({
+        gameId: room.currentGame.gameId,
+        players: room.currentGame.players.map(id => gameState.players[id]?.name || 'Unknown'),
+        scores: room.currentGame.scores,
+        winner: gameState.players[winnerId]?.name || 'Unknown',
+        createdAt: room.currentGame.createdAt,
         completedAt: new Date().toISOString()
       });
     }
 
+    room.lastActivity = Date.now();
     saveGameState();
     
     res.json({
       success: true,
-      gameState: gameState.currentGame.getGameState(),
+      gameState: room.currentGame.getGameState(),
       completedBoxes: result.completedBoxes,
       scoreGained: result.scoreGained,
       gameOver: result.gameOver
@@ -313,14 +431,21 @@ app.post('/api/move', (req, res) => {
 });
 
 // Poll for updates
-app.get('/api/poll/:lastUpdate', (req, res) => {
+app.get('/api/rooms/:roomCode/poll/:lastUpdate', (req, res) => {
+  const { roomCode } = req.params;
   const lastUpdate = parseInt(req.params.lastUpdate);
+  
+  const room = gameState.rooms[roomCode];
+  if (!room) {
+    return res.status(404).json({ success: false, message: 'Room not found' });
+  }
   
   if (gameState.lastUpdate > lastUpdate) {
     res.json({
       success: true,
       hasUpdate: true,
-      gameState: gameState.currentGame ? gameState.currentGame.getGameState() : null,
+      room: room,
+      gameState: room.currentGame ? room.currentGame.getGameState() : null,
       lastUpdate: gameState.lastUpdate
     });
   } else {
@@ -332,21 +457,71 @@ app.get('/api/poll/:lastUpdate', (req, res) => {
   }
 });
 
-// Get game history
-app.get('/api/history', (req, res) => {
-  res.json({
-    success: true,
-    history: gameState.gameHistory.slice(-10) // Last 10 games
-  });
-});
-
 // Reset game
-app.post('/api/reset', (req, res) => {
-  gameState.currentGame = null;
-  gameState.players = {};
+app.post('/api/rooms/:roomCode/reset', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId } = req.body;
+  
+  const room = gameState.rooms[roomCode];
+  if (!room) {
+    return res.status(404).json({ success: false, message: 'Room not found' });
+  }
+
+  if (!room.players.includes(playerId)) {
+    return res.status(403).json({ success: false, message: 'Not in this room' });
+  }
+
+  if (room.currentGame) {
+    room.currentGame.resetGame();
+  }
+  
+  room.lastActivity = Date.now();
   saveGameState();
   
   res.json({ success: true, message: 'Game reset' });
+});
+
+// Leave room
+app.post('/api/rooms/:roomCode/leave', (req, res) => {
+  const { roomCode } = req.params;
+  const { playerId } = req.body;
+  
+  const room = gameState.rooms[roomCode];
+  if (!room) {
+    return res.status(404).json({ success: false, message: 'Room not found' });
+  }
+
+  // Remove player from room
+  room.players = room.players.filter(id => id !== playerId);
+  delete gameState.players[playerId];
+  
+  // If room is empty, delete it
+  if (room.players.length === 0) {
+    delete gameState.rooms[roomCode];
+  } else {
+    room.lastActivity = Date.now();
+  }
+  
+  saveGameState();
+  
+  res.json({ success: true, message: 'Left room' });
+});
+
+// Get game history
+app.get('/api/rooms/:roomCode/history', (req, res) => {
+  const { roomCode } = req.params;
+  
+  const room = gameState.rooms[roomCode];
+  if (!room) {
+    return res.status(404).json({ success: false, message: 'Room not found' });
+  }
+
+  const history = room.currentGame ? room.currentGame.gameHistory : [];
+  
+  res.json({
+    success: true,
+    history: history.slice(-10) // Last 10 games
+  });
 });
 
 // Serve the main page

@@ -2,6 +2,7 @@
 let gameState = null;
 let playerId = null;
 let playerName = null;
+let roomCode = null;
 let lastUpdate = 0;
 let pollInterval = null;
 
@@ -56,13 +57,13 @@ function initSocketGame() {
 }
 
 // API game functions
-function joinGameAPI() {
+function createRoom() {
     if (!playerName) {
-        showScreen('welcome');
+        alert('Please enter your name');
         return;
     }
     
-    fetch('/api/join', {
+    fetch('/api/rooms/create', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -75,22 +76,100 @@ function joinGameAPI() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            gameState = data.gameState;
-            showScreen('game');
-            renderGame();
+            roomCode = data.roomCode;
+            showScreen('room');
+            updateRoomInfo();
             startPolling();
         } else {
-            alert('Error joining game: ' + data.message);
+            alert('Error creating room: ' + data.message);
         }
     })
     .catch(error => {
-        console.error('Error joining game:', error);
-        alert('Error joining game. Please try again.');
+        console.error('Error creating room:', error);
+        alert('Error creating room. Please try again.');
+    });
+}
+
+function joinRoom() {
+    const roomCodeInput = document.getElementById('roomCode');
+    if (!roomCodeInput || !roomCodeInput.value.trim()) {
+        alert('Please enter a room code');
+        return;
+    }
+    
+    if (!playerName) {
+        alert('Please enter your name');
+        return;
+    }
+    
+    const code = roomCodeInput.value.trim().toUpperCase();
+    
+    fetch('/api/rooms/join', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            roomCode: code,
+            playerName: playerName,
+            playerId: playerId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            roomCode = data.roomCode;
+            showScreen('room');
+            updateRoomInfo();
+            startPolling();
+        } else {
+            alert('Error joining room: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error joining room:', error);
+        alert('Error joining room. Please try again.');
+    });
+}
+
+function startGame() {
+    if (!roomCode) {
+        alert('No room code found');
+        return;
+    }
+    
+    fetch(`/api/rooms/${roomCode}/start`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            playerId: playerId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            gameState = data.gameState;
+            showScreen('game');
+            renderGame();
+        } else {
+            alert('Error starting game: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error starting game:', error);
+        alert('Error starting game. Please try again.');
     });
 }
 
 function makeMoveAPI(lineType, row, col) {
-    fetch('/api/move', {
+    if (!roomCode) {
+        alert('No room code found');
+        return;
+    }
+    
+    fetch(`/api/rooms/${roomCode}/move`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -117,7 +196,6 @@ function makeMoveAPI(lineType, row, col) {
                     const winner = gameState.scores[0] > gameState.scores[1] ? 
                         gameState.players[0] : gameState.players[1];
                     alert(`Game Over! ${winner} wins!`);
-                    stopPolling();
                 }, 1000);
             }
         } else {
@@ -130,15 +208,85 @@ function makeMoveAPI(lineType, row, col) {
     });
 }
 
+function resetGame() {
+    if (!roomCode) {
+        alert('No room code found');
+        return;
+    }
+    
+    fetch(`/api/rooms/${roomCode}/reset`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            playerId: playerId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showScreen('room');
+            updateRoomInfo();
+        } else {
+            alert('Error resetting game: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error resetting game:', error);
+        alert('Error resetting game. Please try again.');
+    });
+}
+
+function leaveRoom() {
+    if (!roomCode) {
+        showScreen('welcome');
+        return;
+    }
+    
+    fetch(`/api/rooms/${roomCode}/leave`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            playerId: playerId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        roomCode = null;
+        gameState = null;
+        stopPolling();
+        showScreen('welcome');
+    })
+    .catch(error => {
+        console.error('Error leaving room:', error);
+        roomCode = null;
+        gameState = null;
+        stopPolling();
+        showScreen('welcome');
+    });
+}
+
 function startPolling() {
+    if (!roomCode) return;
+    
     pollInterval = setInterval(() => {
-        fetch(`/api/poll/${lastUpdate}`)
+        fetch(`/api/rooms/${roomCode}/poll/${lastUpdate}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.hasUpdate) {
-                    gameState = data.gameState;
+                    if (data.room) {
+                        updateRoomInfo(data.room);
+                    }
+                    if (data.gameState) {
+                        gameState = data.gameState;
+                        if (document.getElementById('gameScreen').style.display !== 'none') {
+                            renderGame();
+                        }
+                    }
                     lastUpdate = data.lastUpdate;
-                    renderGame();
                 }
             })
             .catch(error => {
@@ -152,6 +300,54 @@ function stopPolling() {
         clearInterval(pollInterval);
         pollInterval = null;
     }
+}
+
+function updateRoomInfo(roomData = null) {
+    if (!roomCode) return;
+    
+    // Update room code display
+    const roomCodeElement = document.getElementById('roomCodeDisplay');
+    if (roomCodeElement) {
+        roomCodeElement.textContent = roomCode;
+    }
+    
+    // Get room info
+    fetch(`/api/rooms/${roomCode}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const room = data.room;
+                
+                // Update player list
+                const playerListElement = document.getElementById('playerList');
+                if (playerListElement) {
+                    playerListElement.innerHTML = room.playerNames.map((name, index) => 
+                        `<div class="player-item ${index === 0 ? 'player1' : 'player2'}">
+                            <span class="player-name">${name}</span>
+                            <span class="player-status">${name === playerName ? '(You)' : ''}</span>
+                        </div>`
+                    ).join('');
+                }
+                
+                // Update start button
+                const startButton = document.getElementById('startGameBtn');
+                if (startButton) {
+                    startButton.disabled = room.players.length < 2;
+                    startButton.textContent = room.players.length < 2 ? 
+                        'Waiting for player...' : 'Start Game';
+                }
+                
+                // Check if there's an active game
+                if (room.currentGame) {
+                    gameState = room.currentGame;
+                    showScreen('game');
+                    renderGame();
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error updating room info:', error);
+        });
 }
 
 // Socket.IO game functions (for local development)
@@ -223,7 +419,8 @@ function joinGame() {
     if (window.socket) {
         window.socket.emit('joinGame', playerName);
     } else {
-        joinGameAPI();
+        // For API-based games, show room options
+        showScreen('roomOptions');
     }
 }
 
@@ -239,7 +436,7 @@ function makeMove(lineType, row, col) {
 function showScreen(screenName) {
     console.log('Showing screen:', screenName);
     // Hide all screens
-    document.querySelectorAll('#loadingScreen, #welcomeScreen, #gameScreen').forEach(screen => {
+    document.querySelectorAll('#loadingScreen, #welcomeScreen, #roomOptionsScreen, #roomScreen, #gameScreen').forEach(screen => {
         screen.style.display = 'none';
     });
     
@@ -507,7 +704,9 @@ function showScoreAnimation(score) {
 }
 
 function updateGameHistory() {
-    fetch('/api/history')
+    if (!roomCode) return;
+    
+    fetch(`/api/rooms/${roomCode}/history`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -559,18 +758,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Reset button
+    // Room options screen
+    const createRoomBtn = document.getElementById('createRoomBtn');
+    if (createRoomBtn) {
+        createRoomBtn.addEventListener('click', createRoom);
+    }
+    
+    const joinRoomBtn = document.getElementById('joinRoomBtn');
+    if (joinRoomBtn) {
+        joinRoomBtn.addEventListener('click', joinRoom);
+    }
+    
+    // Room screen
+    const startGameBtn = document.getElementById('startGameBtn');
+    if (startGameBtn) {
+        startGameBtn.addEventListener('click', startGame);
+    }
+    
+    const leaveRoomBtn = document.getElementById('leaveRoomBtn');
+    if (leaveRoomBtn) {
+        leaveRoomBtn.addEventListener('click', leaveRoom);
+    }
+    
+    // Game screen
     const resetButton = document.getElementById('resetButton');
     if (resetButton) {
-        resetButton.addEventListener('click', () => {
-            fetch('/api/reset', { method: 'POST' })
-                .then(() => {
-                    showScreen('welcome');
-                    stopPolling();
-                })
-                .catch(error => {
-                    console.error('Error resetting game:', error);
-                });
+        resetButton.addEventListener('click', resetGame);
+    }
+    
+    const backToRoomBtn = document.getElementById('backToRoomBtn');
+    if (backToRoomBtn) {
+        backToRoomBtn.addEventListener('click', () => {
+            showScreen('room');
+            updateRoomInfo();
         });
     }
 }); 
