@@ -28,8 +28,18 @@ function init() {
 function initAPIGame() {
     console.log('Initializing API-based game for Vercel');
     
-    // Always show welcome screen first for API-based games
-    showScreen('welcome');
+    // Test API connection first
+    fetch('/api/health')
+        .then(response => response.json())
+        .then(data => {
+            console.log('API health check:', data);
+            showScreen('welcome');
+        })
+        .catch(error => {
+            console.error('API health check failed:', error);
+            // Still show welcome screen even if API fails
+            showScreen('welcome');
+        });
 }
 
 // Socket.IO-based game (for local development)
@@ -229,7 +239,7 @@ function makeMove(lineType, row, col) {
 function showScreen(screenName) {
     console.log('Showing screen:', screenName);
     // Hide all screens
-    document.querySelectorAll('.screen').forEach(screen => {
+    document.querySelectorAll('#loadingScreen, #welcomeScreen, #gameScreen').forEach(screen => {
         screen.style.display = 'none';
     });
     
@@ -521,6 +531,13 @@ function updateGameHistory() {
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing game...');
+    
+    // Set game URL
+    const gameUrlElement = document.getElementById('gameUrl');
+    if (gameUrlElement) {
+        gameUrlElement.textContent = window.location.href;
+    }
+    
     init();
     
     // Welcome screen
