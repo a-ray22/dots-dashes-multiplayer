@@ -2,18 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/game.js",
+      "src": "api/index.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/game.js"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/public/$1"
+      "dest": "/api/index.js"
     }
   ],
   "env": {
