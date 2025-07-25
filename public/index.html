@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dots & Dashes - Multiplayer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gray-100 dark:bg-gray-900">
+    <div id="app" class="min-h-screen">
+        <!-- Loading Screen -->
+        <div id="loadingScreen" class="fixed inset-0 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center z-50">
+            <div class="text-center text-white">
+                <div class="animate-spin-slow mb-4">
+                    <i class="fas fa-gamepad text-6xl"></i>
+                </div>
+                <h1 class="title-large text-white mb-2">Dots & Dashes</h1>
+                <p class="text-xl opacity-90">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Welcome Screen -->
+        <div id="welcomeScreen" class="hidden fixed inset-0 bg-gradient-to-br from-yellow-50 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 flex items-center justify-center z-40">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <div class="text-center mb-8">
+                    <div class="animate-bounce-gentle mb-4">
+                        <i class="fas fa-pencil-alt text-5xl text-blue-500"></i>
+                    </div>
+                    <h1 class="title-medium text-gray-800 dark:text-white mb-2">Dots & Dashes</h1>
+                    <p class="text-gray-600 dark:text-gray-300">Connect the dots, complete boxes, and win!</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="playerName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Your Name
+                        </label>
+                        <input 
+                            type="text" 
+                            id="playerName" 
+                            class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                            placeholder="Enter your name..."
+                            maxlength="20"
+                        >
+                    </div>
+                    
+                    <button 
+                        id="joinGameBtn" 
+                        class="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg"
+                    >
+                        <i class="fas fa-play mr-2"></i>
+                        Join Game
+                    </button>
+                </div>
+                
+                <div class="mt-6 text-center">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        Share this link with your friend to play together!
+                    </p>
+                    <div class="mt-2 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono text-gray-600 dark:text-gray-300">
+                        <span id="gameUrl"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="hidden">
+            <!-- Header -->
+            <header class="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
+                <div class="max-w-6xl mx-auto px-4 py-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <h1 class="title-medium text-gray-800 dark:text-white">Dots & Dashes</h1>
+                            <div class="hidden sm:flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                                <i class="fas fa-users"></i>
+                                <span id="playerCount">1/2</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4">
+                            <!-- Player Scores -->
+                            <div class="hidden sm:flex items-center space-x-4">
+                                <div id="player1Score" class="flex items-center space-x-2">
+                                    <div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        <span id="player1Name">Player 1</span>: <span id="score1">0</span>
+                                    </span>
+                                </div>
+                                <div id="player2Score" class="flex items-center space-x-2 opacity-50">
+                                    <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        <span id="player2Name">Player 2</span>: <span id="score2">0</span>
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Current Player Indicator -->
+                            <div id="currentPlayerIndicator" class="flex items-center space-x-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                                <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                <span class="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                    <span id="currentPlayerName">Your turn</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Game Area -->
+            <main class="max-w-6xl mx-auto px-4 py-8">
+                <div class="grid lg:grid-cols-3 gap-8">
+                    <!-- Game Board -->
+                    <div class="lg:col-span-2">
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <h2 class="text-xl font-semibold text-gray-800 dark:text-white">Game Board</h2>
+                                <div class="flex items-center space-x-2">
+                                    <button id="newGameBtn" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors">
+                                        <i class="fas fa-plus mr-1"></i>
+                                        New Game
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Game Grid -->
+                            <div id="gameGrid" class="flex justify-center">
+                                <div id="dotsGrid" class="relative bg-graph-paper rounded-lg p-8">
+                                    <!-- Dots and lines will be generated here -->
+                                </div>
+                            </div>
+                            
+                            <!-- Game Status -->
+                            <div id="gameStatus" class="mt-6 text-center">
+                                <div id="waitingMessage" class="hidden">
+                                    <div class="flex items-center justify-center space-x-2 text-gray-600 dark:text-gray-400">
+                                        <div class="animate-spin">
+                                            <i class="fas fa-spinner"></i>
+                                        </div>
+                                        <span>Waiting for another player to join...</span>
+                                    </div>
+                                </div>
+                                
+                                <div id="gameOverMessage" class="hidden">
+                                    <div class="bg-gradient-to-r from-green-100 to-blue-100 dark:from-green-900/30 dark:to-blue-900/30 rounded-lg p-4">
+                                        <h3 class="text-lg font-semibold text-green-800 dark:text-green-300 mb-2">
+                                            Game Over!
+                                        </h3>
+                                        <p id="winnerMessage" class="text-green-700 dark:text-green-400"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Game Info Panel -->
+                    <div class="lg:col-span-1">
+                        <div class="space-y-6">
+                            <!-- Players Panel -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+                                <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                                    <i class="fas fa-users mr-2"></i>
+                                    Players
+                                </h3>
+                                <div class="space-y-3">
+                                    <div id="player1Info" class="flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                        <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                                            <span id="player1Initial">P1</span>
+                                        </div>
+                                        <div class="flex-1">
+                                            <div class="font-medium text-gray-800 dark:text-white" id="player1NamePanel">Player 1</div>
+                                            <div class="text-sm text-gray-600 dark:text-gray-400">Score: <span id="score1Panel">0</span></div>
+                                        </div>
+                                        <div id="player1Status" class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    </div>
+                                    
+                                    <div id="player2Info" class="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg opacity-50">
+                                        <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center text-white font-semibold">
+                                            <span id="player2Initial">P2</span>
+                                        </div>
+                                        <div class="flex-1">
+                                            <div class="font-medium text-gray-800 dark:text-white" id="player2NamePanel">Waiting...</div>
+                                            <div class="text-sm text-gray-600 dark:text-gray-400">Score: <span id="score2Panel">0</span></div>
+                                        </div>
+                                        <div id="player2Status" class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Game History -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+                                <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                                    <i class="fas fa-history mr-2"></i>
+                                    Recent Games
+                                </h3>
+                                <div id="gameHistory" class="space-y-2 max-h-48 overflow-y-auto">
+                                    <div class="text-center text-gray-500 dark:text-gray-400 text-sm py-4">
+                                        No recent games
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Instructions -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
+                                <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    How to Play
+                                </h3>
+                                <div class="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+                                    <div class="flex items-start space-x-2">
+                                        <div class="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                                        <p>Click on dots to draw lines between them</p>
+                                    </div>
+                                    <div class="flex items-start space-x-2">
+                                        <div class="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                                        <p>Complete a box to score a point and get another turn</p>
+                                    </div>
+                                    <div class="flex items-start space-x-2">
+                                        <div class="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
+                                        <p>Player with the most boxes wins!</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Disconnected Modal -->
+        <div id="disconnectedModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+                <div class="text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-exclamation-triangle text-5xl text-yellow-500"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 dark:text-white mb-2">
+                        Player Disconnected
+                    </h3>
+                    <p class="text-gray-600 dark:text-gray-300 mb-6">
+                        A player has disconnected from the game. The game will end in 30 seconds if they don't reconnect.
+                    </p>
+                    <button id="closeDisconnectedModal" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+</body>
+</html> 
