@@ -323,7 +323,12 @@ app.get('/api/rooms/:roomCode', (req, res) => {
     success: true,
     room: {
       ...room,
-      playerNames: playerNames
+      playerNames: playerNames,
+      players: room.players.map((playerId, index) => ({
+        id: playerId,
+        name: gameState.players[playerId]?.name || `Player ${index + 1}`,
+        index: index
+      }))
     }
   });
 });

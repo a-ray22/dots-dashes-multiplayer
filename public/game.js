@@ -6,6 +6,8 @@ let roomCode = null;
 let lastUpdate = 0;
 let pollInterval = null;
 let selectedDot = null;
+let hoveredLine = null;
+let roomPlayerNames = []; // Store player names from room info
 
 // Initialize the game
 function init() {
@@ -319,6 +321,9 @@ function updateRoomInfo(roomData = null) {
             if (data.success) {
                 const room = data.room;
                 
+                // Store player names for use in game
+                roomPlayerNames = room.playerNames || [];
+                
                 // Update player list
                 const playerListElement = document.getElementById('playerList');
                 if (playerListElement) {
@@ -454,15 +459,15 @@ function showScreen(screenName) {
 function updatePlayerInfo() {
     const playerInfo = document.getElementById('playerInfo');
     if (playerInfo && gameState) {
-        const players = gameState.players.map(id => getPlayerName(id));
+        const playerNames = getPlayerNames();
         playerInfo.innerHTML = `
             <div class="player">
-                <span class="player-name">${players[0] || 'Waiting...'}</span>
+                <span class="player-name">${playerNames[0] || 'Waiting...'}</span>
                 <span class="player-score">${gameState.scores[0]}</span>
             </div>
             <div class="vs">VS</div>
             <div class="player">
-                <span class="player-name">${players[1] || 'Waiting...'}</span>
+                <span class="player-name">${playerNames[1] || 'Waiting...'}</span>
                 <span class="player-score">${gameState.scores[1]}</span>
             </div>
         `;
@@ -472,7 +477,8 @@ function updatePlayerInfo() {
 function updateCurrentPlayer() {
     const currentPlayerEl = document.getElementById('currentPlayer');
     if (currentPlayerEl && gameState) {
-        const currentPlayerName = getPlayerName(gameState.players[gameState.currentPlayer]);
+        const playerNames = getPlayerNames();
+        const currentPlayerName = playerNames[gameState.currentPlayer] || 'Unknown';
         currentPlayerEl.textContent = `Current Turn: ${currentPlayerName}`;
     }
 }
@@ -480,35 +486,38 @@ function updateCurrentPlayer() {
 function updateScores() {
     const scoresEl = document.getElementById('scores');
     if (scoresEl && gameState) {
+        const playerNames = getPlayerNames();
         scoresEl.innerHTML = `
             <div class="score">
-                <span class="player-name">${getPlayerName(gameState.players[0])}</span>
+                <span class="player-name">${playerNames[0] || 'Player 1'}</span>
                 <span class="score-value">${gameState.scores[0]}</span>
             </div>
             <div class="score">
-                <span class="player-name">${getPlayerName(gameState.players[1])}</span>
+                <span class="player-name">${playerNames[1] || 'Player 2'}</span>
                 <span class="score-value">${gameState.scores[1]}</span>
             </div>
         `;
     }
 }
 
-function getPlayerName(playerId) {
-    if (!playerId) return 'Unknown';
-    if (playerId === playerId) return playerName;
+function getPlayerNames() {
+    if (!gameState || !gameState.players) return ['Player 1', 'Player 2'];
     
-    // Get player name from game state or room info
-    if (gameState && gameState.players) {
-        const playerIndex = gameState.players.indexOf(playerId);
-        if (playerIndex !== -1) {
-            // Try to get from room info
-            if (roomCode) {
-                // This will be updated by polling
-                return `Player ${playerIndex + 1}`;
-            }
-        }
+    // Use stored player names from room info if available
+    if (roomPlayerNames.length > 0) {
+        return gameState.players.map((id, index) => {
+            return roomPlayerNames[index] || `Player ${index + 1}`;
+        });
     }
-    return `Player ${gameState.players.indexOf(playerId) + 1}`;
+    
+    // Fallback to basic names
+    return gameState.players.map((id, index) => {
+        if (id === playerId) {
+            return playerName;
+        } else {
+            return `Player ${index + 1}`;
+        }
+    });
 }
 
 function renderGame() {
@@ -556,8 +565,65 @@ function createDot(row, col) {
     dot.dataset.col = col;
     
     dot.addEventListener('click', () => handleDotClick(row, col));
+    dot.addEventListener('mouseenter', () => handleDotHover(row, col));
+    dot.addEventListener('mouseleave', () => handleDotLeave());
     
     return dot;
+}
+
+function handleDotHover(row, col) {
+    if (!gameState || gameState.gameOver) return;
+    
+    // Check if it's this player's turn
+    if (gameState.players[gameState.currentPlayer] !== playerId) return;
+    
+    if (selectedDot) {
+        // Show preview line between selected dot and hovered dot
+        const lineType = getLineType(selectedDot, { row, col });
+        if (lineType) {
+            showLinePreview(lineType, Math.min(selectedDot.row, row), Math.min(selectedDot.col, col));
+        }
+    }
+}
+
+function handleDotLeave() {
+    hideLinePreview();
+}
+
+function showLinePreview(lineType, row, col) {
+    hideLinePreview();
+    
+    const gameBoard = document.getElementById('gameBoard');
+    const previewLine = document.createElement('div');
+    previewLine.className = 'line-preview';
+    previewLine.style.position = 'absolute';
+    previewLine.style.zIndex = '8';
+    previewLine.style.opacity = '0.5';
+    
+    if (lineType === 'h') {
+        previewLine.style.left = `${col * 60 + 26}px`;
+        previewLine.style.top = `${row * 60 + 14}px`;
+        previewLine.style.width = '48px';
+        previewLine.style.height = '8px';
+    } else {
+        previewLine.style.left = `${col * 60 + 14}px`;
+        previewLine.style.top = `${row * 60 + 26}px`;
+        previewLine.style.width = '8px';
+        previewLine.style.height = '48px';
+    }
+    
+    previewLine.style.backgroundColor = '#6b7280';
+    previewLine.style.borderRadius = '4px';
+    
+    gameBoard.appendChild(previewLine);
+    hoveredLine = previewLine;
+}
+
+function hideLinePreview() {
+    if (hoveredLine) {
+        hoveredLine.remove();
+        hoveredLine = null;
+    }
 }
 
 function handleDotClick(row, col) {
@@ -585,6 +651,7 @@ function handleDotClick(row, col) {
         // Clear selection
         clearDotSelection();
         selectedDot = null;
+        hideLinePreview();
     }
 }
 
